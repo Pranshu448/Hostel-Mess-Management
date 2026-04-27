@@ -5,6 +5,13 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const menuRoutes = require('./routes/menuRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
+const crowdRoutes = require('./routes/crowdRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -31,6 +38,13 @@ app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/crowd', crowdRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/admin', dashboardRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) =>

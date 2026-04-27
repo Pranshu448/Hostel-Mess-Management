@@ -1,8 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const NITJ_DOMAIN = '@nitj.ac.in';
-
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -19,10 +17,6 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
-      validate: {
-        validator: (v) => v.endsWith(NITJ_DOMAIN),
-        message: `Only ${NITJ_DOMAIN} email addresses are allowed`,
-      },
     },
     password: {
       type: String,
@@ -32,7 +26,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['student', 'staff', 'admin'],
+      enum: ['student', 'admin'],
       default: 'student',
     },
     isActive: {
