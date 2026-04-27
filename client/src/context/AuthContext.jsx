@@ -35,8 +35,8 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  const signup = useCallback(async (username, email, password) => {
-    const data = await authAPI.signup({ username, email, password });
+  const signup = useCallback(async (username, email, password, role = 'student') => {
+    const data = await authAPI.signup({ username, email, password, role });
     localStorage.setItem('hmms_token', data.token);
     setToken(data.token);
     setUser(data.user);

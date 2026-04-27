@@ -13,8 +13,7 @@ function ProtectedRoute({ children }) {
   }
 
   if (!token || !user) {
-    // Redirect to login if there is no token or user (failed verification)
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
   return children;

@@ -1,24 +1,14 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 
-const NITJ_DOMAIN = '@nitj.ac.in';
-
 // ─── POST /api/auth/signup ───────────────────────────────────────────────────
 const signup = async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, role } = req.body;
 
     // ── Validate inputs
     if (!username || !email || !password) {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
-    }
-
-    // ── Enforce NITJ email domain (server-side guard)
-    if (!email.toLowerCase().endsWith(NITJ_DOMAIN)) {
-      return res.status(400).json({
-        success: false,
-        message: `Only ${NITJ_DOMAIN} email addresses are accepted.`,
-      });
     }
 
     // ── Password strength check
@@ -36,7 +26,12 @@ const signup = async (req, res, next) => {
     }
 
     // ── Create user
-    const user = await User.create({ username, email: email.toLowerCase(), password });
+    const user = await User.create({
+      username,
+      email: email.toLowerCase(),
+      password,
+      role: role === 'admin' ? 'admin' : 'student',
+    });
 
     const token = generateToken({ id: user._id, role: user.role });
 
@@ -68,13 +63,6 @@ const login = async (req, res, next) => {
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
-    }
-
-    if (!email.toLowerCase().endsWith(NITJ_DOMAIN)) {
-      return res.status(400).json({
-        success: false,
-        message: `Only ${NITJ_DOMAIN} email addresses are accepted.`,
-      });
     }
 
     // Explicitly select password (it's excluded by default)
