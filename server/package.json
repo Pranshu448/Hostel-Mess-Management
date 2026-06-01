@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "ml": "cd ../ml-service && python app.py"
   },
   "dependencies": {
     "all": "^0.0.0",

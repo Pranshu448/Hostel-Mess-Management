@@ -1,5 +1,6 @@
 .env
 .env.*
+/ml-service/.venv/
 node_modules/
 client/node_modules/
 server/node_modules/
@@ -7,3 +8,6 @@ dist
 build
 coverage
 .DS_Store
+ml-service/.venv/
+ml-service/artifacts/
+ml-service/__pycache__/

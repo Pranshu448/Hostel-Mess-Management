@@ -27,22 +27,53 @@ export const authAPI = {
 
 export const attendanceAPI = {
   getMine: (token) => api.get('/attendance/me', authConfig(token)).then((r) => r.data),
-  getQr: (token) => api.get('/attendance/qr', authConfig(token)).then((r) => r.data),
+  getQr: (token, mealType) =>
+    api.get(`/attendance/qr${mealType ? `?mealType=${mealType}` : ''}`, authConfig(token)).then((r) => r.data),
   mark: (token, payload) => api.post('/attendance/mark', payload, authConfig(token)).then((r) => r.data),
-  listByDate: (token, date) => api.get(`/attendance/list?date=${date}`, authConfig(token)).then((r) => r.data),
+  listByDate: (token, date, mealType) =>
+    api
+      .get(`/attendance/list?date=${date}${mealType ? `&mealType=${mealType}` : ''}`, authConfig(token))
+      .then((r) => r.data),
 };
 
 export const menuAPI = {
   getWeekly: (token) => api.get('/menu/weekly', authConfig(token)).then((r) => r.data),
   saveWeekly: (token, payload) => api.post('/menu/weekly', payload, authConfig(token)).then((r) => r.data),
-  getForm: (token) => api.get('/menu/preferences/form', authConfig(token)).then((r) => r.data),
-  createForm: (token, payload) => api.post('/menu/preferences/form', payload, authConfig(token)).then((r) => r.data),
-  submitPrefs: (token, payload) => api.post('/menu/preferences/submit', payload, authConfig(token)).then((r) => r.data),
-  suggestions: (token) => api.get('/menu/preferences/suggestions', authConfig(token)).then((r) => r.data),
+  getNutrition: (token) => api.get('/menu/nutrition', authConfig(token)).then((r) => r.data),
+  saveNutrition: (token, payload) => api.post('/menu/nutrition', payload, authConfig(token)).then((r) => r.data),
   getDailyItems: (token, date) => api.get(`/menu/daily-items?date=${date || ''}`, authConfig(token)).then((r) => r.data),
   addDailyItem: (token, payload) => api.post('/menu/daily-items', payload, authConfig(token)).then((r) => r.data),
   toggleDailyItem: (token, id) => api.patch(`/menu/daily-items/${id}/toggle`, {}, authConfig(token)).then((r) => r.data),
   deleteDailyItem: (token, id) => api.delete(`/menu/daily-items/${id}`, authConfig(token)).then((r) => r.data),
+};
+
+export const ratingsAPI = {
+  getDishes: (token) => api.get('/ratings/dishes', authConfig(token)).then((r) => r.data),
+  list: (token) => api.get('/ratings', authConfig(token)).then((r) => r.data),
+  submit: (token, payload) => api.post('/ratings', payload, authConfig(token)).then((r) => r.data),
+};
+
+export const mlAPI = {
+  generateMenu: (token, payload) => api.post('/ml/menu/generate', payload || {}, authConfig(token)).then((r) => r.data),
+  forecastAttendance: (token) => api.get('/ml/attendance/forecast', authConfig(token)).then((r) => r.data),
+  forecastDemand: (token) => api.get('/ml/inventory/demand-forecast', authConfig(token)).then((r) => r.data),
+  listModels: (token) => api.get('/ml/models', authConfig(token)).then((r) => r.data),
+};
+
+export const analyticsAPI = {
+  student: (token) => api.get('/analytics/student', authConfig(token)).then((r) => r.data),
+  admin: (token) => api.get('/analytics/admin', authConfig(token)).then((r) => r.data),
+};
+
+export const wasteAPI = {
+  list: (token) => api.get('/waste', authConfig(token)).then((r) => r.data),
+  save: (token, payload) => api.post('/waste', payload, authConfig(token)).then((r) => r.data),
+  predict: (token) => api.get('/waste/predict', authConfig(token)).then((r) => r.data),
+};
+
+export const qrAPI = {
+  scan: (token, payload) => api.post('/qr/scan', payload, authConfig(token)).then((r) => r.data),
+  validate: (token, payload) => api.post('/qr/validate', payload, authConfig(token)).then((r) => r.data),
 };
 
 export const paymentAPI = {
@@ -71,6 +102,7 @@ export const crowdAPI = {
 export const inventoryAPI = {
   list: (token) => api.get('/inventory', authConfig(token)).then((r) => r.data),
   upsert: (token, payload) => api.post('/inventory', payload, authConfig(token)).then((r) => r.data),
+  remove: (token, id) => api.delete(`/inventory/${id}`, authConfig(token)).then((r) => r.data),
 };
 
 export const adminAPI = {

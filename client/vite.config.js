@@ -7,10 +7,10 @@ export default defineConfig({
   plugins: [react(), basicSsl()],
   server: {
     host: true,
-    https: true,
+    https: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
       },

@@ -12,14 +12,21 @@ const feedbackRoutes = require('./routes/feedbackRoutes');
 const crowdRoutes = require('./routes/crowdRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const mlRoutes = require('./routes/mlRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const wasteRoutes = require('./routes/wasteRoutes');
+const ratingRoutes = require('./routes/ratingRoutes');
+const qrRoutes = require('./routes/qrRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
 // ─── Database ──────────────────────────────────────────────────────────────
-connectDB().then(() => {
+connectDB().then(async () => {
   const seedMenuAndDailyItems = require('./utils/seeder');
-  seedMenuAndDailyItems().catch(err => console.error('❌ Seeding failed on startup:', err));
+  const seedEnhancedData = require('./utils/enhancedSeeder');
+  await seedMenuAndDailyItems().catch((err) => console.error('❌ Seeding failed on startup:', err));
+  await seedEnhancedData().catch((err) => console.error('❌ Enhanced seeding failed:', err));
 });
 
 // ─── Rate limiter (auth endpoints only) ────────────────────────────────────
@@ -56,6 +63,11 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/crowd', crowdRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/admin', dashboardRoutes);
+app.use('/api/ml', mlRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/waste', wasteRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/qr', qrRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) =>

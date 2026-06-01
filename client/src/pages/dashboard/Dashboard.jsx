@@ -8,16 +8,23 @@ import {
   attendanceAPI, 
   crowdAPI, 
   feedbackAPI, 
-  inventoryAPI, 
   menuAPI, 
-  paymentAPI 
+  paymentAPI,
+  qrAPI,
 } from '../../services/api';
+import StudentAttendanceTab from '../../components/dashboard/StudentAttendanceTab';
+import StudentMenuNutritionTab from '../../components/dashboard/StudentMenuNutritionTab';
+import FoodRatingsTab from '../../components/dashboard/FoodRatingsTab';
+import AdminMenuManagement from '../../components/dashboard/AdminMenuManagement';
+import AdminAttendanceTab from '../../components/dashboard/AdminAttendanceTab';
+import AdminInventoryTab from '../../components/dashboard/AdminInventoryTab';
+import AdminWasteTab from '../../components/dashboard/AdminWasteTab';
 
 const studentTabs = [
   'Dashboard', 
   'QR Attendance', 
   'Weekly Menu', 
-  'Food Preference', 
+  'Food Ratings', 
   'Purchase & Extras', 
   'Fees / Payments', 
   'Feedback'
@@ -27,11 +34,12 @@ const adminTabs = [
   'Dashboard', 
   'Attendance Management', 
   'Daily Items Manager',
-  'QR Scanner Billing',
+  'QR Scanner',
   'Payments', 
   'Crowd Management', 
   'Menu Management', 
-  'Inventory', 
+  'Inventory Management', 
+  'Food Waste',
   'Feedback Management'
 ];
 
@@ -62,15 +70,9 @@ function Dashboard() {
   const [feedback, setFeedback] = useState([]);
   const [crowd, setCrowd] = useState('Low');
   const [adminOverview, setAdminOverview] = useState(null);
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [attendanceList, setAttendanceList] = useState([]);
   const [paymentList, setPaymentList] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [prefForm, setPrefForm] = useState(null);
-  const [prefAnswers, setPrefAnswers] = useState({});
+  const [nutritionConfig, setNutritionConfig] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [showPrefModal, setShowPrefModal] = useState(false);
 
   // New billing & dynamic daily items states
   const [dailyItems, setDailyItems] = useState([]);
@@ -97,38 +99,36 @@ function Dashboard() {
   };
 
   const loadCommon = async () => {
-    const [crowdRes, menuRes, dailyRes] = await Promise.all([
+    const [crowdRes, menuRes, dailyRes, nutRes] = await Promise.all([
       crowdAPI.get(token), 
       menuAPI.getWeekly(token),
-      menuAPI.getDailyItems(token)
+      menuAPI.getDailyItems(token),
+      menuAPI.getNutrition(token),
     ]);
     setCrowd(crowdRes.crowd.level);
     setMenu(menuRes.menu);
     setDailyItems(dailyRes.items || []);
+    setNutritionConfig(nutRes.config);
   };
 
   const loadStudent = async () => {
-    const [attendanceRes, paymentRes, feedbackRes, formRes, transRes] = await Promise.all([
+    const [attendanceRes, paymentRes, feedbackRes, transRes] = await Promise.all([
       attendanceAPI.getMine(token),
       paymentAPI.getMine(token),
       feedbackAPI.mine(token),
-      menuAPI.getForm(token),
       paymentAPI.getTransactions(token)
     ]);
     setAttendance(attendanceRes);
     setPayment(paymentRes.payment);
     setFeedback(feedbackRes.feedback);
-    setPrefForm(formRes.form);
     setStudentTransactions(transRes.transactions || []);
   };
 
   const loadAdmin = async () => {
-    const [overviewRes, paymentRes, feedRes, invRes, suggRes, dailyRes, adminTransRes] = await Promise.all([
+    const [overviewRes, paymentRes, feedRes, dailyRes, adminTransRes] = await Promise.all([
       adminAPI.overview(token),
       paymentAPI.list(token),
       feedbackAPI.list(token),
-      inventoryAPI.list(token),
-      menuAPI.suggestions(token),
       menuAPI.getDailyItems(token),
       paymentAPI.getAdminTransactions(token).catch(err => {
         console.error("Error loading admin transactions", err);
@@ -138,8 +138,6 @@ function Dashboard() {
     setAdminOverview(overviewRes.overview);
     setPaymentList(paymentRes.payments);
     setFeedback(feedRes.feedback);
-    setInventory(invRes.items);
-    setSuggestions(suggRes.suggestions);
     setDailyItems(dailyRes.items || []);
     setAdminTransactions(adminTransRes.transactions || []);
   };
@@ -157,25 +155,26 @@ function Dashboard() {
   useEffect(() => {
     let html5QrCode;
     
-    if (activeTab === 'QR Scanner Billing' && isScanning) {
+    if (activeTab === 'QR Scanner' && isScanning) {
       html5QrCode = new Html5Qrcode("qr-reader");
 
       const onScanSuccess = async (decodedText) => {
         try {
           const data = JSON.parse(decodedText);
+          setIsScanning(false);
+          try {
+            await html5QrCode.stop();
+          } catch (stopErr) {
+            console.error("Error stopping qr scanner", stopErr);
+          }
           if (data.type === "mess-billing") {
             setScannedTransactionData(data);
-            setIsScanning(false);
-            try {
-              await html5QrCode.stop();
-            } catch (stopErr) {
-              console.error("Error stopping qr scanner", stopErr);
-            }
-          } else {
-            alert("Invalid QR Code category. Must be a purchase invoice.");
+            return;
           }
+          const result = await qrAPI.scan(token, { payload: data, raw: decodedText });
+          alert(result.message || "QR processed successfully.");
         } catch (err) {
-          alert("Unable to parse QR payload. Format must be JSON.");
+          alert(err.response?.data?.message || "Unable to process QR code.");
         }
       };
 
@@ -248,23 +247,6 @@ function Dashboard() {
     setPayment(result.payment);
   });
 
-  const handleOpenQr = () => safeCall(async () => {
-    const result = await attendanceAPI.getQr(token);
-    setQrData(result);
-    setShowQrModal(true);
-  });
-
-  const handleMarkAttendance = (studentId) => safeCall(async () => {
-    await attendanceAPI.mark(token, { studentId, source: 'manual', date: attendanceDate });
-    const updated = await attendanceAPI.listByDate(token, attendanceDate);
-    setAttendanceList(updated.items);
-  });
-
-  const loadAttendanceList = () => safeCall(async () => {
-    const result = await attendanceAPI.listByDate(token, attendanceDate);
-    setAttendanceList(result.items);
-  });
-
   const submitFeedback = async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -281,56 +263,6 @@ function Dashboard() {
     const updated = await feedbackAPI.list(token);
     setFeedback(updated.feedback);
   });
-
-  const submitPreferences = () => safeCall(async () => {
-    await menuAPI.submitPrefs(token, { answers: prefAnswers });
-    setShowPrefModal(false);
-  });
-
-  const saveMenu = (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const days = {};
-    dayLabels.forEach((day) => {
-      days[day] = {
-        breakfast: form.get(`${day}-breakfast`),
-        lunch: form.get(`${day}-lunch`),
-        snacks: form.get(`${day}-snacks`),
-        dinner: form.get(`${day}-dinner`),
-      };
-    });
-    safeCall(async () => {
-      const result = await menuAPI.saveWeekly(token, { weekStartDate: new Date().toISOString().slice(0, 10), days });
-      setMenu(result.menu);
-    });
-  };
-
-  const saveInventory = (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    safeCall(async () => {
-      await inventoryAPI.upsert(token, {
-        name: form.get('name'),
-        quantity: Number(form.get('quantity')),
-        unit: form.get('unit'),
-      });
-      const updated = await inventoryAPI.list(token);
-      setInventory(updated.items);
-      event.currentTarget.reset();
-    });
-  };
-
-  const buildForm = (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const raw = (form.get('questions') || '').toString().split('\n').map((q, i) => q.trim() ? ({ id: `q${i + 1}`, label: q.trim(), type: 'text' }) : null).filter(Boolean);
-    safeCall(async () => {
-      await menuAPI.createForm(token, { title: form.get('title') || 'Weekly Food Preferences', questions: raw });
-      const current = await menuAPI.getForm(token);
-      setPrefForm(current.form);
-      event.currentTarget.reset();
-    });
-  };
 
   // Staff Daily Item Handlers
   const handleAddDailyItem = (event) => {
@@ -655,87 +587,15 @@ function Dashboard() {
 
           {/* STUDENT QR ATTENDANCE TAB */}
           {activeTab === 'QR Attendance' && user?.role === 'student' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800">QR Meal Attendance</h2>
-                  <p className="text-sm text-slate-500 mt-1">Show this QR code at the counter to log meal entry.</p>
-                </div>
-                <button className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 font-semibold text-white shadow-md transition" onClick={handleOpenQr}>
-                  Generate Entry QR
-                </button>
-              </div>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card title="Total Present days" value={attendance?.stats?.totalPresentDays || 0} />
-                <Card title="Monthly average %" value={`${attendance?.stats?.monthlyAttendancePercent || 0}%`} />
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                      <th className="p-4 text-left">Date</th>
-                      <th className="p-4 text-left">Status</th>
-                      <th className="p-4 text-left">Log Source</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {attendance?.history?.map((h) => (
-                      <tr key={h._id} className="hover:bg-slate-50/50">
-                        <td className="p-4 text-slate-700 font-medium">{h.date}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${h.status === 'present' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700'}`}>
-                            {h.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-slate-500 font-mono text-xs">{h.source}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <StudentAttendanceTab token={token} />
           )}
 
-          {/* WEEKLY MENU TAB */}
           {activeTab === 'Weekly Menu' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-slate-800">Weekly Scheduled Menu</h2>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                      <th className="p-4 text-left">Day</th>
-                      <th className="p-4 text-left">Breakfast</th>
-                      <th className="p-4 text-left">Lunch</th>
-                      <th className="p-4 text-left">Snacks</th>
-                      <th className="p-4 text-left">Dinner</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {dayLabels.map((day) => (
-                      <tr key={day} className="hover:bg-slate-50/50">
-                        <td className="p-4 capitalize font-semibold text-slate-700">{day}</td>
-                        <td className="p-4 text-slate-600">{menu?.days?.[day]?.breakfast || '-'}</td>
-                        <td className="p-4 text-slate-600">{menu?.days?.[day]?.lunch || '-'}</td>
-                        <td className="p-4 text-slate-600">{menu?.days?.[day]?.snacks || '-'}</td>
-                        <td className="p-4 text-slate-600">{menu?.days?.[day]?.dinner || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <StudentMenuNutritionTab menu={menu} nutritionConfig={nutritionConfig} />
           )}
 
-          {/* FOOD PREFERENCE FORM TAB */}
-          {activeTab === 'Food Preference' && user?.role === 'student' && (
-            <div className="space-y-6 text-center max-w-lg mx-auto py-12">
-              <h2 className="text-2xl font-bold text-slate-800">Food Preferences Form</h2>
-              <p className="text-slate-500">Provide weekly preferences to help us customize upcoming mess menu selections.</p>
-              <button className="mt-4 rounded-lg bg-blue-600 hover:bg-blue-700 px-6 py-3 font-semibold text-white shadow-md transition" onClick={() => setShowPrefModal(true)}>
-                Open Preference Form
-              </button>
-            </div>
+          {activeTab === 'Food Ratings' && user?.role === 'student' && (
+            <FoodRatingsTab token={token} />
           )}
 
           {/* DYNAMIC FOOD & EXTRAS SELECTION TAB (STUDENT) */}
@@ -999,40 +859,7 @@ function Dashboard() {
 
           {/* ADMIN ATTENDANCE MANAGEMENT TAB */}
           {activeTab === 'Attendance Management' && user?.role === 'admin' && (
-            <div className="space-y-6">
-              <div className="flex gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm items-center">
-                <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} className="rounded-lg border border-slate-300 p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                <button onClick={loadAttendanceList} className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2 font-semibold text-white shadow-sm transition">
-                  Load Records
-                </button>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                      <th className="p-4 text-left">Student Name</th>
-                      <th className="p-4 text-left">Date</th>
-                      <th className="p-4 text-left">Status</th>
-                      <th className="p-4 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {attendanceList.map((a) => (
-                      <tr key={a._id} className="hover:bg-slate-50/50">
-                        <td className="p-4 text-slate-800 font-medium">{a.student?.username}</td>
-                        <td className="p-4 text-slate-600">{a.date}</td>
-                        <td className="p-4 text-slate-600 capitalize">{a.status}</td>
-                        <td className="p-4">
-                          <button onClick={() => handleMarkAttendance(a.student?._id)} className="rounded bg-emerald-600 hover:bg-emerald-700 px-3 py-1 text-xs font-semibold text-white shadow-sm transition">
-                            Mark Present
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AdminAttendanceTab token={token} />
           )}
 
           {/* STAFF DALLY ITEMS MANAGEMENT TAB (ADMIN) */}
@@ -1124,7 +951,7 @@ function Dashboard() {
           )}
 
           {/* STAFF CAMERA QR CODE SCANNER BILLING TAB (ADMIN) */}
-          {activeTab === 'QR Scanner Billing' && user?.role === 'admin' && (
+          {activeTab === 'QR Scanner' && user?.role === 'admin' && (
             <div className="space-y-8 animate-fadeIn">
               <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
                 <div className="absolute right-0 top-0 -mr-16 -mt-16 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl"></div>
@@ -1392,82 +1219,22 @@ function Dashboard() {
 
           {/* ADMIN MENU MANAGEMENT WEEKLY SCHEDULE TAB */}
           {activeTab === 'Menu Management' && user?.role === 'admin' && (
-            <div className="space-y-8">
-              <form className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4" onSubmit={saveMenu}>
-                <h3 className="font-bold text-slate-800 text-lg border-b pb-2">Edit Weekly Scheduled Menu</h3>
-                {dayLabels.map((day) => (
-                  <div key={day} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
-                    <span className="text-sm font-semibold capitalize text-slate-700">{day}</span>
-                    <input name={`${day}-breakfast`} defaultValue={menu?.days?.[day]?.breakfast || ''} placeholder="Breakfast" className="rounded-lg border border-slate-300 p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                    <input name={`${day}-lunch`} defaultValue={menu?.days?.[day]?.lunch || ''} placeholder="Lunch" className="rounded-lg border border-slate-300 p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                    <input name={`${day}-snacks`} defaultValue={menu?.days?.[day]?.snacks || ''} placeholder="Snacks" className="rounded-lg border border-slate-300 p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                    <input name={`${day}-dinner`} defaultValue={menu?.days?.[day]?.dinner || ''} placeholder="Dinner" className="rounded-lg border border-slate-300 p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                ))}
-                <button className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 font-bold text-white shadow-md transition">
-                  Publish Weekly Menu
-                </button>
-              </form>
-
-              <form className="bg-white rounded-xl border border-slate-200 shadow-sm p-6" onSubmit={buildForm}>
-                <h3 className="font-bold text-slate-800 text-lg mb-2">Publish Student Preference Form</h3>
-                <input name="title" className="mb-3 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Form title (e.g. Favorite Dinner Selection)" />
-                <textarea name="questions" className="mb-4 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Write one preference question per line" rows={4} />
-                <button className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 font-bold text-white shadow-md transition">
-                  Publish Form
-                </button>
-              </form>
-
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <h3 className="font-bold text-slate-800 text-lg mb-3">Popular Vote Menu Item Suggestions</h3>
-                <div className="grid gap-2">
-                  {suggestions.length === 0 ? (
-                    <p className="text-sm text-slate-500">No preference votes logged yet.</p>
-                  ) : (
-                    suggestions.map((s) => (
-                      <div key={s.item} className="flex justify-between border-b pb-1 text-sm text-slate-600">
-                        <span className="capitalize">{s.item}</span>
-                        <span className="font-bold">{s.votes} votes</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
+            <AdminMenuManagement
+              token={token}
+              menu={menu}
+              onMenuUpdated={(m) => {
+                setMenu(m);
+                loadCommon();
+              }}
+            />
           )}
 
-          {/* ADMIN INVENTORY STOCK TAB */}
-          {activeTab === 'Inventory' && user?.role === 'admin' && (
-            <div className="space-y-6">
-              <form className="flex flex-wrap gap-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm items-center" onSubmit={saveInventory}>
-                <input name="name" className="rounded-lg border border-slate-300 p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-[200px]" placeholder="Item name" required />
-                <input name="quantity" type="number" className="rounded-lg border border-slate-300 p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500 w-32" placeholder="Quantity" required />
-                <input name="unit" className="rounded-lg border border-slate-300 p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500 w-32" placeholder="Unit" defaultValue="kg" />
-                <button className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 font-semibold text-white shadow-sm transition">
-                  Update Stock
-                </button>
-              </form>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                      <th className="p-4 text-left">Ingredient Name</th>
-                      <th className="p-4 text-left">Available Stock</th>
-                      <th className="p-4 text-left">Unit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {inventory.map((i) => (
-                      <tr key={i._id} className="hover:bg-slate-50/50">
-                        <td className="p-4 text-slate-800 font-semibold capitalize">{i.name}</td>
-                        <td className="p-4 text-slate-700 font-medium">{i.quantity}</td>
-                        <td className="p-4 text-slate-600">{i.unit}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {activeTab === 'Inventory Management' && user?.role === 'admin' && (
+            <AdminInventoryTab token={token} />
+          )}
+
+          {activeTab === 'Food Waste' && user?.role === 'admin' && (
+            <AdminWasteTab token={token} />
           )}
 
           {/* ADMIN FEEDBACK RESOLUTION TAB */}
@@ -1577,33 +1344,6 @@ function Dashboard() {
         </div>
       )}
 
-      {/* FOOD PREFERENCE QUESTIONS DIALOG MODAL */}
-      {showPrefModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b pb-3 mb-4">
-              <h3 className="text-lg font-bold text-slate-800">{prefForm?.title || 'Preference Form'}</h3>
-              <button onClick={() => setShowPrefModal(false)} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
-            </div>
-            <div className="space-y-4 py-3">
-              {prefForm?.questions?.map((q) => (
-                <div key={q.id}>
-                  <label className="mb-1 block text-sm font-semibold text-slate-700">{q.label}</label>
-                  <input className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500 bg-slate-50" onChange={(e) => setPrefAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))} />
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 flex gap-3">
-              <button className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 py-3 font-semibold text-white shadow-md transition" onClick={submitPreferences}>
-                Submit Response
-              </button>
-              <button className="rounded-xl bg-slate-100 hover:bg-slate-200 px-6 py-3 font-semibold text-slate-600 transition" onClick={() => setShowPrefModal(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <div id="qr-reader-temp" className="hidden"></div>
     </div>
   );

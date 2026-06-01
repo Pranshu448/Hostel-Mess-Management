@@ -11,10 +11,17 @@ const listInventory = async (_req, res, next) => {
 
 const upsertInventory = async (req, res, next) => {
   try {
-    const { name, quantity, unit } = req.body;
+    const { name, quantity, unit, purchaseDate, expiryDate, cost } = req.body;
     const item = await Inventory.findOneAndUpdate(
       { name: name.trim().toLowerCase() },
-      { name: name.trim().toLowerCase(), quantity, unit: unit || 'kg' },
+      {
+        name: name.trim().toLowerCase(),
+        quantity,
+        unit: unit || 'kg',
+        purchaseDate: purchaseDate || '',
+        expiryDate: expiryDate || '',
+        cost: cost || 0,
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json({ success: true, item });
@@ -23,4 +30,13 @@ const upsertInventory = async (req, res, next) => {
   }
 };
 
-module.exports = { listInventory, upsertInventory };
+const deleteInventory = async (req, res, next) => {
+  try {
+    await Inventory.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Item removed' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { listInventory, upsertInventory, deleteInventory };

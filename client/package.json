@@ -13,11 +13,14 @@
     "@heroicons/react": "^2.2.0",
     "all": "^0.0.0",
     "axios": "^1.6.8",
+    "chart.js": "^4.4.2",
     "html5-qrcode": "^2.3.8",
     "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.3"
+    "react-router-dom": "^6.22.3",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
