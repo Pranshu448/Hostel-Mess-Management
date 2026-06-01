@@ -1,6 +1,13 @@
+const path = require('path');
 const mongoose = require('mongoose');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const uri = 'mongodb+srv://avengers4368_db_user:helix_448@syncboard.b1nwvqr.mongodb.net/hmmsDB';
+const uri = process.env.MONGO_URI;
+
+if (!uri) {
+  console.error('Error: MONGO_URI environment variable is not defined in .env');
+  process.exit(1);
+}
 
 const attendanceSchema = new mongoose.Schema(
   {
